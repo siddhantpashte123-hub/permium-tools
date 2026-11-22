@@ -2,14 +2,12 @@ require('dotenv').config();
 
 const readline = require('node:readline/promises');
 const { stdin, stdout } = require('node:process');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 
-const MIN_INTERVAL_MS = 60 * 60 * 1000;
-const MAX_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_LOGS = 100;
 const logs = [];
-const state = { client: null, timer: null, running: false, connecting: false, lastSentAt: null, nextSendAt: null };
+const state = { client: null, running: false, connecting: false, lastSentAt: null };
 
 function log(message) {
   const line = `${new Date().toISOString()} ${message}`;
@@ -20,8 +18,7 @@ function log(message) {
 
 function readConfig(env = process.env, token) {
   const channelId = (env.DISCORD_CHANNEL_ID || '').trim();
-  const message = (env.MESSAGE || 'owo h').trim();
-  const intervalHours = Number(env.INTERVAL_HOURS || 1);
+  const message = (env.MESSAGE || 'Hello from my Discord bot').trim();
 
   if (!token || !token.trim()) throw new Error('A Discord BOT token is required.');
   if (!/^\d{17,20}$/.test(channelId)) {
@@ -31,14 +28,8 @@ function readConfig(env = process.env, token) {
   if (message.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`MESSAGE must be ${MAX_MESSAGE_LENGTH} characters or fewer.`);
   }
-  if (!Number.isFinite(intervalHours)) throw new Error('INTERVAL_HOURS must be a number.');
 
-  const intervalMs = intervalHours * 60 * 60 * 1000;
-  if (intervalMs < MIN_INTERVAL_MS || intervalMs > MAX_INTERVAL_MS) {
-    throw new Error('INTERVAL_HOURS must be between 1 and 720 (minimum one hour; 13-second posting is not supported).');
-  }
-
-  return { token: token.trim(), channelId, message, intervalMs, intervalHours };
+  return { token: token.trim(), channelId, message };
 }
 
 async function readSecret(prompt) {
@@ -71,11 +62,8 @@ async function readSecret(prompt) {
 }
 
 async function stopBot() {
-  clearTimeout(state.timer);
-  state.timer = null;
   state.running = false;
   state.connecting = false;
-  state.nextSendAt = null;
   if (state.client) {
     const client = state.client;
     state.client = null;
@@ -101,36 +89,25 @@ async function startBot(token) {
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   state.client = client;
   state.connecting = true;
-  log(`Connecting bot; one channel, ${config.intervalHours} hour interval; first message after a full interval.`);
+  log('Connecting bot; one message will be sent after the bot connects.');
 
-  client.once('ready', () => {
+  client.once(Events.ClientReady, async () => {
     if (state.client !== client) return;
     state.connecting = false;
     state.running = true;
     log(`Signed in as ${client.user.tag}.`);
 
-    const sendAndSchedule = async () => {
-      if (state.client !== client || !state.running) return;
-      try {
-        const channel = await client.channels.fetch(config.channelId);
-        if (!channel || !channel.isTextBased() || typeof channel.send !== 'function') {
-          throw new Error('Configured channel is missing or does not support messages.');
-        }
-        await channel.send({ content: config.message, allowedMentions: { parse: [] } });
-        state.lastSentAt = new Date();
-        log(`Announcement sent to channel ${config.channelId}.`);
-      } catch (error) {
-        log(`Could not send announcement: ${error.message}`);
-      } finally {
-        if (state.client === client && state.running) {
-          state.nextSendAt = new Date(Date.now() + config.intervalMs);
-          state.timer = setTimeout(sendAndSchedule, config.intervalMs);
-        }
+    try {
+      const channel = await client.channels.fetch(config.channelId);
+      if (!channel || !channel.isTextBased() || typeof channel.send !== 'function') {
+        throw new Error('Configured channel is missing or does not support messages.');
       }
-    };
-
-    state.nextSendAt = new Date(Date.now() + config.intervalMs);
-    state.timer = setTimeout(sendAndSchedule, config.intervalMs);
+      await channel.send({ content: config.message, allowedMentions: { parse: [] } });
+      state.lastSentAt = new Date();
+      log(`One-time announcement sent to channel ${config.channelId}.`);
+    } catch (error) {
+      log(`Could not send announcement: ${error.message}`);
+    }
   });
 
   client.on('error', (error) => log(`Discord client error: ${error.message}`));
@@ -151,8 +128,8 @@ function printStatus() {
   const status = state.running ? 'running' : state.connecting ? 'connecting' : 'stopped';
   console.log(`Status: ${status}`);
   if (state.running || state.connecting) {
-    console.log(`Last sent: ${state.lastSentAt ? state.lastSentAt.toISOString() : 'not sent yet'}`);
-    console.log(`Next scheduled: ${state.nextSendAt ? state.nextSendAt.toISOString() : 'waiting for Discord connection'}`);
+    console.log(`Last sent: ${state.lastSentAt ? state.lastSentAt.toISOString() : state.connecting ? 'waiting for Discord connection' : 'not sent (check Logs)'}`);
+    console.log('Mode: one-time post only; no automatic repeats.');
   }
 }
 
@@ -167,7 +144,7 @@ async function askLine(prompt) {
 
 async function main() {
   console.log('Discord Channel Announcer — official bot account only.');
-  console.log('Scheduled posting has a one-hour minimum interval; user-account tokens/self-bots are not supported.');
+  console.log('Start sends one configured message; no automatic repeats. User-account tokens/self-bots are not supported.');
 
   while (true) {
     console.log('\n1 Start\n2 Stop\n3 Logs\n4 Status\n5 Exit');
@@ -196,4 +173,4 @@ async function main() {
 
 if (require.main === module) void main();
 
-module.exports = { readConfig, MIN_INTERVAL_MS, MAX_INTERVAL_MS, MAX_MESSAGE_LENGTH };
+module.exports = { readConfig, MAX_MESSAGE_LENGTH };

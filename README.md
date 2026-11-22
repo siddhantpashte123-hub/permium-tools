@@ -1,6 +1,6 @@
-# Discord Channel Announcer
+# Discord One-Time Announcer
 
-A small interactive CLI for an official Discord **bot**. It posts one configured message to one configured channel on a schedule.
+A small interactive CLI for an official Discord **bot**. Choosing **Start** connects the bot and sends exactly one configured message to one configured channel. It does not repeat automatically.
 
 ```text
 1 Start
@@ -10,15 +10,14 @@ A small interactive CLI for an official Discord **bot**. It posts one configured
 5 Exit
 ```
 
-The bot token is requested with hidden terminal input when you choose **Start** and stays in memory only. The channel, message, and interval are configured in `.env`.
+The bot token is requested with hidden terminal input and stays in memory only. The channel ID and message are configured in `.env`.
 
 ## Safety
 
-- This uses an official bot token from the Discord Developer Portal. It does not support personal/user tokens or self-bots.
-- Repeated messages every 13 seconds are deliberately not supported. The minimum interval is one hour to avoid spam/rate-limit abuse.
-- Posting starts only after a full interval; it does not send immediately on startup.
-- The bot posts only in one configured channel, and mentions are suppressed.
-- Never commit bot credentials. If a bot token is exposed, reset it in the Discord Developer Portal.
+- Uses an official bot token from the Discord Developer Portal; it does not support personal/user tokens or self-bots.
+- Sends one message per explicit Start action, with no automatic repeats.
+- Posts only to one configured channel, and suppresses mentions.
+- Keep credentials private. If the bot token is exposed, reset it in the Discord Developer Portal.
 
 ## Setup
 
@@ -31,10 +30,10 @@ The bot token is requested with hidden terminal input when you choose **Start** 
    cp .env.example .env
    ```
 
-4. Set `DISCORD_CHANNEL_ID` in `.env`. `MESSAGE` defaults to `owo h`; change it if you want. `INTERVAL_HOURS` must be from 1 to 720.
-5. Start the interactive CLI with `npm start`, choose `1 Start`, then enter the **bot** token (input is hidden). Use `2 Stop`, `3 Logs`, and `4 Status` as needed.
+4. Set `DISCORD_CHANNEL_ID` and your plain announcement in `.env`.
+5. Run `npm start`, choose `1 Start`, and enter the **bot** token (input is hidden). The bot sends one message after connecting. To send another, use Stop, then explicitly Start again.
 
-To copy a channel ID, enable Developer Mode in Discord, right-click the channel, and choose **Copy Channel ID**. For an interactive menu on a VPS, run it in a terminal session such as `tmux`.
+To copy a channel ID, enable Developer Mode in Discord, right-click the channel, and choose **Copy Channel ID**. On a VPS, run it in an interactive terminal such as `tmux`; Docker is not required.
 
 ## Verify
 

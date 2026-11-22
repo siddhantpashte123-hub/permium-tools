@@ -3,28 +3,34 @@ const assert = require('node:assert/strict');
 const { readConfig } = require('./index');
 
 const validEnv = {
-  DISCORD_BOT_TOKEN: 'test-token',
   DISCORD_CHANNEL_ID: '123456789012345678',
-  MESSAGE: 'Daily update',
-  INTERVAL_HOURS: '24',
-  ENABLED: 'false'
+  MESSAGE: 'A one-time announcement'
 };
 
-test('reads a valid configuration', () => {
-  const config = readConfig(validEnv, 'test-token');
-  assert.equal(config.intervalMs, 24 * 60 * 60 * 1000);
-  assert.equal(config.message, 'Daily update');
+test('reads a valid one-time announcement configuration', () => {
+  const config = readConfig(validEnv, 'test-bot-token');
+  assert.equal(config.channelId, '123456789012345678');
+  assert.equal(config.message, 'A one-time announcement');
+  assert.equal(config.token, 'test-bot-token');
 });
 
-test('rejects intervals shorter than one hour, including 13 seconds', () => {
-  assert.throws(() => readConfig({ ...validEnv, INTERVAL_HOURS: '0.5' }, 'test-token'), /between 1 and 720/);
-  assert.throws(() => readConfig({ ...validEnv, INTERVAL_HOURS: String(13 / 3600) }, 'test-token'), /between 1 and 720/);
+test('uses a neutral default message when MESSAGE is omitted', () => {
+  const config = readConfig({ DISCORD_CHANNEL_ID: validEnv.DISCORD_CHANNEL_ID }, 'test-bot-token');
+  assert.equal(config.message, 'Hello from my Discord bot');
 });
 
 test('rejects invalid channel IDs', () => {
-  assert.throws(() => readConfig({ ...validEnv, DISCORD_CHANNEL_ID: 'not-a-channel' }, 'test-token'), /channel ID/);
+  assert.throws(() => readConfig({ ...validEnv, DISCORD_CHANNEL_ID: 'not-a-channel' }, 'test-bot-token'), /channel ID/);
 });
 
 test('rejects empty messages', () => {
-  assert.throws(() => readConfig({ ...validEnv, MESSAGE: '   ' }, 'test-token'), /must not be empty/);
+  assert.throws(() => readConfig({ ...validEnv, MESSAGE: '   ' }, 'test-bot-token'), /must not be empty/);
+});
+
+test('rejects messages over Discord content limit', () => {
+  assert.throws(() => readConfig({ ...validEnv, MESSAGE: 'x'.repeat(2001) }, 'test-bot-token'), /2000 characters/);
+});
+
+test('requires a bot token', () => {
+  assert.throws(() => readConfig(validEnv, ''), /BOT token is required/);
 });
